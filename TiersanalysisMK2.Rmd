@@ -1,0 +1,343 @@
+---
+title: "TiersAnalysis"
+author: "Henry Hyde"
+date: "2023-12-23"
+output:
+  html_document:
+    toc: yes
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r include=FALSE}
+library(tidyverse)
+##TiersGatheringMissionMK3
+##Date: 12-25-23
+TiersDF <- read.csv("/Users/henryhyde/Desktop/TiersProject/Tiersallinfo.csv")
+##All info in one pretty place
+
+##Still have to convert numbers to dbls
+test <- apply(TiersDF, 2,  parse_number)
+test <- as_tibble(test) %>%
+  select(!"COUNTY")
+test2 <- select(TiersDF, COUNTY)
+TiersDF <- bind_cols(test2, test)
+##got it
+options(scipen = 10)
+```
+# Research Q: 
+	To what degree do the variety of property revaluation cycles affect county distress rankings 
+	
+	Preliminary Answer: Little
+
+# Exploration of County Tiers Generally
+Tier are four elements that determine a County's Tier, aka its Distress Rank
+
+1. Per Capita Taxible Property Value
+2. Per Capita Taxible Income
+3. Population Growth Rate
+4. Unemployment Rate
+
+Each County is ranked from 1-100 on each of these elements, the sum of each County's four rankings are then ranked to determine the County's overall Distress Rank.
+The Fourty 'Most Distressed' Counties are those fourty with the lowest Distress Rank, these fourty are Called Tier-1 Counties.
+The Counties with Distress Rankings of 41-80 are called Tier-2 Counties.
+The Counties with Distress Rankings of 81-100 are called Tier-3 Counties.
+
+
+*All data is derived from the NC Department of Commerce Website and represents the six years of data since the formula change of 2018 *
+
+## What is the importance of one's County Tier?
+
+A Counties Tier determines its elegibility for certain state programs, for others it does not affect its elegibility but it does determine the level of local 'match' for projects. 
+
+Notable Programs with County Tiers as a Factor include:
+XXXXXXXXXXXXX
+XXXXXXXXXXXXX
+
+## 1. Per Capita Taxible Property Value
+
+```{r}
+#Prop Value
+TiersDF %>%
+  group_by(COUNTY) %>%
+  summarize(AverageProp = mean(AdjustedProperty)) %>%
+  ggplot(aes(COUNTY, AverageProp))+
+  geom_col()+
+  ylab("Per Capita Property Averaged over sample")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 5))
+```
+
+## 2. Per Capita Taxible Income
+
+```{r}
+##Average Income
+TiersDF %>%
+  group_by(COUNTY) %>%
+  summarise(AverageInc = mean(Median.Household.Income)) %>%
+  ggplot(aes(COUNTY, AverageInc))+
+    geom_col()+
+    ylab("Median Household Income Averaged over sample")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 5))
+```
+
+## 3. Population Growth Rate
+
+```{r}
+##Averaged Population Growth
+TiersDF %>%
+  group_by(COUNTY) %>%
+  summarise(AverageGrowth = mean(Population.Growth)) %>%
+  ggplot(aes(COUNTY, AverageGrowth))+
+  geom_col()+
+  ylab("Pop Growth Rate Averaged over sample")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 5))
+```
+
+## 4. Unemployment Rate
+
+```{r}
+##Averaged Unemp
+TiersDF %>%
+  group_by(COUNTY) %>%
+  summarise(AveUnemp = mean(Unemployment)) %>%
+  ggplot(aes(COUNTY, AveUnemp))+
+  geom_col()+
+  ylab("Unemployement Rate Averaged over sample")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 5))
+```
+
+
+
+# Background:
+What are the revaluation cycles?
+
+  NCGS 105-286 requires every county to perform a countywide revaluation at least every 8 years. Many counties, however, do it much more frequently. (Burke is on a four year cycle, last completed in 2023)
+
+```{r}
+#########PROPERTY
+##Cycle Length
+CycleLength <- TiersDF %>%
+  group_by(COUNTY) %>%
+  summarise(Cyclelength = (mean(NextReval)) - (mean(LatestReval)))
+
+CycleLength %>% 
+  group_by(Cyclelength) %>%
+  ggplot(aes(Cyclelength))+
+  geom_freqpoly(binwidth = .5)+
+  ylab("Number of Counties with each CycleLength")
+```
+
+FYI: The average Cycle Lenth is 5.79
+
+# Corelation 
+There is not as much correlation as expected between a revaluation and property value. In Burke's case, the slope is lower between the year prior to revaluation and the year of revaluation (2023), than between two years prior and one
+
+```{r}
+##Burke's Graph
+BurkeDF <- TiersDF %>%
+  filter(COUNTY == "BURKE")
+BurkeDF %>%
+  ggplot(aes(year, AdjustedProperty))+
+  geom_line()+
+  geom_point()+
+  geom_vline(data = BurkeDF, aes(xintercept = LatestReval))
+```
+
+
+## All Counties with Revaluations in Recent Years Overlaid
+
+```{r}
+##Overlaid Graphs
+TiersDF %>%
+  filter(LatestReval >2019) %>%
+  ggplot(aes(year, AdjustedProperty, color = COUNTY))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~LatestReval, nrow = 1)+
+  theme(legend.position="none")+
+  geom_vline(data = filter(TiersDF, LatestReval >2019), aes(xintercept = LatestReval))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12))
+```
+
+
+## Each Reval Year's Counties Side by Side with Revaluation Year Marked
+
+### 2020
+```{r}
+TiersDF %>%
+  filter(LatestReval == 2020) %>%
+  ggplot(aes(year, AdjustedProperty, color = COUNTY))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~COUNTY)+
+  theme(legend.position="none")+
+  geom_vline(data = filter(TiersDF, LatestReval == 2020), aes(xintercept = LatestReval))
+```
+
+### 2021
+
+
+```{r}
+TiersDF %>%
+  filter(LatestReval == 2021) %>%
+  ggplot(aes(year, AdjustedProperty, color = COUNTY))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~COUNTY)+
+  theme(legend.position="none")+
+  geom_vline(data = filter(TiersDF, LatestReval == 2021), aes(xintercept = LatestReval))
+```
+
+
+### 2022
+```{r}
+TiersDF %>%
+  filter(LatestReval == 2022) %>%
+  ggplot(aes(year, AdjustedProperty, color = COUNTY))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~COUNTY)+
+  theme(legend.position="none")+
+  geom_vline(data = filter(TiersDF, LatestReval == 2022), aes(xintercept = LatestReval))
+```
+
+### 2023
+
+```{r}
+TiersDF %>%
+  filter(LatestReval == 2023) %>%
+  ggplot(aes(year, AdjustedProperty, color = COUNTY))+
+  geom_line()+
+  geom_point()+
+  facet_wrap(~COUNTY)+
+  theme(legend.position="none")+
+  geom_vline(data = filter(TiersDF, LatestReval == 2023), aes(xintercept = LatestReval))
+```
+
+
+
+### The takeaway is that the occurance of a Revaluation does not neccessarily Predict a Jump
+
+1. Next I will determine how many of the counties who have had a revaluation since 2019 have experience a jump greater than the average jump for 6 years
+  + Of those that have, to what degree?
+2. Find ordinary variance in County Prop Rank year to year, vs. variance in County Prop Rank on reval years.
+  + to contextually point 2, find ordinary variance in other 3 rankings
+
+
+
+```{r}
+##creating new DF with diffPropRank
+ChangeinPropRank <-  TiersDF %>%
+  group_by(COUNTY) %>%
+  arrange(year) %>%
+  reframe(diff(PropRank))
+ChangeinPropRank <- select(ChangeinPropRank, "diff(PropRank)")
+colnames(ChangeinPropRank) <- "diffPropRank"
+
+Changeable <- TiersDF %>%
+  filter(year != 2019) %>%
+  group_by(COUNTY) %>%
+  arrange(year) %>%
+  arrange(COUNTY)
+
+
+##this is same but for total y-o-y value change
+ChangeinPropVal <-  TiersDF %>%
+  group_by(COUNTY) %>%
+  arrange(year) %>%
+  reframe(diff(AdjustedProperty))
+ChangeinPropVal <- select(ChangeinPropVal, "diff(AdjustedProperty)")
+colnames(ChangeinPropVal) <- "diffPropVal"
+
+ChangedPropRank <- bind_cols(ChangeinPropRank, ChangeinPropVal, Changeable)
+
+```
+
+
+We can calculate the year over year difference in Property Value Ranking, and view this against the reval year.
+
+This should show us if one is more likely to move up the ranks if they have a reval year
+
+
+Here is what is Property Difference looks like with a sample county (Burke of course), compared against the reval year. 
+
+```{r}
+##What it Shows
+ChangedPropRank %>%
+  filter(COUNTY == "BURKE") %>%
+  ggplot(aes(year, diffPropRank))+
+  geom_line()+
+  geom_vline(xintercept = 2023)
+```
+
+That is a significant Jump!   Lets zoom out and see the trends more generally
+
+
+Below is the Average year-to-year rank change when one has a revaluation; and below that is the aveerage year-to-year rank change when one does not have a revaluation
+```{r}
+##This is big
+avechangeonrevalyear <- ChangedPropRank %>%
+  filter(LatestReval == year)
+mean(avechangeonrevalyear$diffPropRank)
+avechangenotreval <- ChangedPropRank %>%
+  filter(LatestReval != year)
+mean(avechangenotreval$diffPropRank)
+###interesting
+```
+
+This tell us that on average a county moves up 0.08 ranks when revaluating; and they move down 0.01 ranks when not revaluating
+
+It is now apparent there is a correlation between rankings and revaluations, but it is slight
+
+Here is some further information on year-over-year change in Property Value Rankings
+```{r}
+quantile(avechangenotreval$diffPropRank)
+quantile(avechangeonrevalyear$diffPropRank)
+```
+
+
+The following graph, showing year over year Property Value Rank Change, overlaying each revaluation year, again shows that this correlation is not very large and not visually observable
+
+```{r}
+ChangedPropRank %>%
+  filter(LatestReval > 2019) %>%
+  ggplot(aes(year, diffPropRank, color = COUNTY))+
+  facet_wrap(~LatestReval)+
+  geom_line()+
+  geom_vline(aes(xintercept = `LatestReval`))+
+  theme(legend.position="none")
+```
+
+
+Same scheme with total change in value
+
+```{r}
+mean(avechangeonrevalyear$diffPropVal)
+mean(avechangenotreval$diffPropVal)
+```
+```{r}
+quantile(avechangeonrevalyear$diffPropVal)
+quantile(avechangenotreval$diffPropVal)
+```
+The outlier here is quite apparent. Further Research Q: Find out what happened in Hyde County
+
+
+```{r}
+ChangedPropRank %>%
+  filter(LatestReval > 2019) %>%
+  ggplot(aes(year, diffPropVal, color = COUNTY))+
+  facet_wrap(~LatestReval)+
+  geom_line()+
+  geom_vline(aes(xintercept = `LatestReval`))+
+  theme(legend.position="none")
+```
+
+
+
+
+
